@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ProfileScreen(),
             ),
             buildDrawerItem(Icons.card_giftcard, 'Урамшуулал', context, null),
-            buildDrawerItem(Icons.groups, 'Авто клуб', context, null),
+             
             buildDrawerItem(Icons.info, 'Бидний тухай', context, null),
             buildDrawerItem(Icons.rule, 'Үйлчилгээний нөхцөл', context, null),
             buildDrawerItem(Icons.help, 'Тусламж', context, null),
