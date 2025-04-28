@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../login_select_screen.dart';
+import 'login_screen.dart';
 import 'profile_screen.dart';
-import 'create_repair_screen.dart';
+import '../employee/create_repair_screen.dart';
 import 'add_vehicle_screen.dart';
+import 'vehicle_list_screen.dart';
+import 'user_history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -48,78 +53,89 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String uid = FirebaseAuth.instance.currentUser!.uid;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Auto Repair System'),
-        backgroundColor: const Color.fromARGB(255, 211, 214, 216),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: const BoxDecoration(color: Colors.blue),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF3A7BD5), Color(0xFF00D2FF)],
+                ),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
                   Icon(Icons.car_repair, size: 48, color: Colors.white),
                   SizedBox(height: 8),
                   Text(
-                    'XX Auto',
+                    'XX Auto Center',
                     style: TextStyle(color: Colors.white, fontSize: 18),
                   ),
                 ],
               ),
             ),
-            buildDrawerItem(
-              Icons.person,
-              'Хувийн мэдээлэл',
-              context,
-              ProfileScreen(),
-            ),
+            buildDrawerItem(Icons.person, 'Хувийн мэдээлэл', context, ProfileScreen()),
+            buildDrawerItem(Icons.car_rental, 'Миний машинууд', context, VehicleListScreen(uid: uid)),
+            buildDrawerItem(Icons.history, 'Үйлчилгээний түүх', context, UserHistoryScreen(user: widget.user)),
             buildDrawerItem(Icons.card_giftcard, 'Урамшуулал', context, null),
-             
-            buildDrawerItem(Icons.info, 'Бидний тухай', context, null),
-            buildDrawerItem(Icons.rule, 'Үйлчилгээний нөхцөл', context, null),
-            buildDrawerItem(Icons.help, 'Тусламж', context, null),
-            buildDrawerItem(Icons.logout, 'Гарах', context, null),
+            buildDrawerItem(Icons.info_outline, 'Бидний тухай', context, null),
+            buildDrawerItem(Icons.rule_folder, 'Үйлчилгээний нөхцөл', context, null),
+            buildDrawerItem(Icons.help_outline, 'Тусламж', context, null),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.blue),
+              title: const Text('Гарах'),
+              onTap: () async {
+                await FirebaseAuth.instance.signOut();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginSelectScreen()),
+                  (route) => false,
+                );
+              },
+            ),
           ],
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [_buildAddCarButton(context)],
-            ),
-            const SizedBox(height: 20),
+            _buildAddCarButton(context),
+            const SizedBox(height: 24),
             SizedBox(
               height: 180,
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: _bannerImages.length,
-                itemBuilder:
-                    (context, index) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: AssetImage(_bannerImages[index]),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
+                itemBuilder: (context, index) => Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 5),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: DecorationImage(
+                      image: AssetImage(_bannerImages[index]),
+                      fit: BoxFit.cover,
                     ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             const Text(
               'Үйлчилгээ',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -129,20 +145,11 @@ class _HomeScreenState extends State<HomeScreen> {
               childAspectRatio: 1,
               children: const [
                 ServiceTile(icon: Icons.build, label: 'Сэгсэрдэг оношилгоо'),
-                ServiceTile(
-                  icon: Icons.cleaning_services,
-                  label: 'Авто доторлогоо',
-                ),
-                ServiceTile(
-                  icon: Icons.lightbulb,
-                  label: 'Авто гэрэл тохиргоо',
-                ),
+                ServiceTile(icon: Icons.cleaning_services, label: 'Авто доторлогоо'),
+                ServiceTile(icon: Icons.lightbulb, label: 'Авто гэрэл тохиргоо'),
                 ServiceTile(icon: Icons.oil_barrel, label: 'Тос солих'),
                 ServiceTile(icon: Icons.computer, label: 'Компьютер оношилгоо'),
-                ServiceTile(
-                  icon: Icons.settings,
-                  label: 'Явах эд ангийн оношилгоо',
-                ),
+                ServiceTile(icon: Icons.settings, label: 'Явах эд анги'),
               ],
             ),
           ],
@@ -151,22 +158,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildDrawerItem(
-    IconData icon,
-    String title,
-    BuildContext context,
-    Widget? screen,
-  ) {
+  Widget buildDrawerItem(IconData icon, String title, BuildContext context, Widget? screen) {
     return ListTile(
-      leading: Icon(icon),
+      leading: Icon(icon, color: Colors.blue),
       title: Text(title),
-      onTap:
-          screen != null
-              ? () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => screen),
-              )
-              : null,
+      onTap: screen != null
+          ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => screen))
+          : () {},
     );
   }
 
@@ -186,23 +184,18 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color.fromARGB(255, 255, 255, 255),
+              color: Colors.grey.withOpacity(0.2),
               blurRadius: 5,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(
-              Icons.directions_car,
-              color: Color.fromARGB(255, 236, 165, 33),
-            ),
+            Icon(Icons.directions_car, color: Colors.orange),
             SizedBox(height: 5),
-            Text(
-              'Машин нэмэх',
-              style: TextStyle(color: Color.fromARGB(255, 115, 83, 239)),
-            ),
+            Text('Машин нэмэх', style: TextStyle(color: Colors.indigo)),
           ],
         ),
       ),
@@ -227,13 +220,9 @@ class ServiceTile extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 40, color: const Color.fromARGB(255, 28, 128, 181)),
+          Icon(icon, size: 36, color: Colors.blueAccent),
           const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13),
-          ),
+          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
         ],
       ),
     );

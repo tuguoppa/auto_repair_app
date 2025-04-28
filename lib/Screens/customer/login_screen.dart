@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
+import 'register_screen.dart'; // 🔄 Register дэлгэцийн импорт
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,29 +15,39 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  void _login() {
+  bool isLoading = false;
+
+  Future<void> _login() async {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
     if (_formKey.currentState!.validate()) {
-      if (email == 'user@example.com' && password == '123456') {
-        final user = {
-          'name': 'tuguldur',
-          'email': email,
-        };
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Амжилттай нэвтэрлээ!')),
-        );
+      setState(() => isLoading = true);
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
-        );
-      } else {
+      try {
+        final userCredential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(email: email, password: password);
+
+        final user = userCredential.user;
+
+        if (user != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Амжилттай нэвтэрлээ!')),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(user: {'email': user.email}),
+            ),
+          );
+        }
+      } on FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Имэйл эсвэл нууц үг буруу байна')),
+          SnackBar(content: Text('Алдаа: ${e.message}')),
         );
+      } finally {
+        setState(() => isLoading = false);
       }
     }
   }
@@ -72,11 +84,27 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _login,
-                child: const Text("Нэвтрэх"),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-              ),
+              if (isLoading) const CircularProgressIndicator(),
+              if (!isLoading)
+                Column(
+                  children: [
+                    ElevatedButton(
+                      onPressed: _login,
+                      child: const Text("Нэвтрэх"),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                        );
+                      },
+                      child: const Text("Шинэ хэрэглэгч үү? Бүртгүүлэх"),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

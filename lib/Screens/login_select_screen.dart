@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
-import 'workshop_login_screen.dart';
+import 'customer/login_screen.dart';
+import 'employee/workshop_login_screen.dart';
 
 class LoginSelectScreen extends StatelessWidget {
   const LoginSelectScreen({super.key});
@@ -8,7 +8,7 @@ class LoginSelectScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 25, 24, 24),
       appBar: AppBar(
         title: const Text('Нэвтрэх төрөл сонгох'),
         backgroundColor: Colors.blue,
@@ -34,7 +34,7 @@ class LoginSelectScreen extends StatelessWidget {
             const SizedBox(height: 20),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey,
+                backgroundColor: const Color.fromARGB(255, 2, 2, 2),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               ),
               onPressed: () {
