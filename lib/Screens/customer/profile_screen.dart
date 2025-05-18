@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,51 +13,44 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final user = FirebaseAuth.instance.currentUser;
   final TextEditingController lastNameController = TextEditingController();
   final TextEditingController firstNameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController currentPasswordController = TextEditingController();
+  final TextEditingController newPasswordController = TextEditingController();
 
-  final user = FirebaseAuth.instance.currentUser;
-
-  List<Map<String, dynamic>> vehicles = [];
+  bool isEditing = false;
+  String? photoUrl;
+  File? _selectedImage;
 
   @override
   void initState() {
     super.initState();
-    if (user != null) {
-      emailController.text = user!.email ?? '';
-      _loadUserProfile();
-      _loadUserVehicles();
-    }
+    emailController.text = user?.email ?? '';
   }
 
-  Future<void> _loadUserProfile() async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-    final data = doc.data();
-    if (data != null) {
-      lastNameController.text = data['lastName'] ?? '';
-      firstNameController.text = data['firstName'] ?? '';
-      phoneController.text = data['phone'] ?? '';
-    }
-  }
+  Future<void> _pickAndUploadImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
 
-  Future<void> _loadUserVehicles() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('vehicles')
-        .get();
+    final file = File(picked.path);
+    final ref = FirebaseStorage.instance.ref().child('profile_pictures/${user!.uid}.jpg');
+
+    await ref.putFile(file);
+    final downloadURL = await ref.getDownloadURL();
+
+    await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
+      'photoUrl': downloadURL,
+    });
 
     setState(() {
-      vehicles = snapshot.docs.map((doc) => {
-            'id': doc.id,
-            'model': doc['model'],
-            'plate': doc['plate'],
-          }).toList();
+      photoUrl = downloadURL;
+      _selectedImage = file;
     });
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Зураг хадгалагдлаа")));
   }
 
   Future<void> _saveUserProfile() async {
@@ -64,79 +60,148 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'phone': phoneController.text,
     }, SetOptions(merge: true));
 
+    setState(() => isEditing = false);
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Хувийн мэдээлэл хадгалагдлаа")),
+      const SnackBar(content: Text("Мэдээлэл хадгалагдлаа")),
     );
   }
 
-  Widget _buildVehicleList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: vehicles.length,
-      itemBuilder: (context, index) {
-        final vehicle = vehicles[index];
-        return ListTile(
-          leading: const Icon(Icons.directions_car),
-          title: Text(vehicle['model'] ?? ''),
-          subtitle: Text("Дугаар: ${vehicle['plate']}"),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user!.uid)
-                  .collection('vehicles')
-                  .doc(vehicle['id'])
-                  .delete();
-              _loadUserVehicles();
-            },
-          ),
-        );
-      },
-    );
+  Future<void> _changePassword() async {
+    try {
+      final cred = EmailAuthProvider.credential(
+        email: user!.email!,
+        password: currentPasswordController.text,
+      );
+      await user!.reauthenticateWithCredential(cred);
+      await user!.updatePassword(newPasswordController.text);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Нууц үг амжилттай солигдлоо")),
+      );
+
+      currentPasswordController.clear();
+      newPasswordController.clear();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Алдаа: $e")));
+    }
+  }
+
+  Future<void> _sendEmailVerification() async {
+    if (user != null && !user!.emailVerified) {
+      await user!.sendEmailVerification();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Баталгаажуулах имэйл илгээгдлээ")),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Хувийн мэдээлэл"),
+        title: const Text("Профайл"),
         backgroundColor: Colors.orange,
+        actions: [
+          IconButton(
+            icon: Icon(isEditing ? Icons.save : Icons.edit),
+            onPressed: () {
+              if (isEditing) {
+                _saveUserProfile();
+              } else {
+                setState(() => isEditing = true);
+              }
+            },
+          )
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: lastNameController,
-              decoration: const InputDecoration(labelText: "Овог"),
+      body: user == null
+          ? const Center(child: Text("Хэрэглэгч олдсонгүй"))
+          : StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return const Center(child: Text("Мэдээлэл олдсонгүй"));
+                }
+
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+
+                lastNameController.text = data['lastName'] ?? '';
+                firstNameController.text = data['firstName'] ?? '';
+                phoneController.text = data['phone'] ?? '';
+                photoUrl = data['photoUrl'];
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: isEditing ? _pickAndUploadImage : null,
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundImage: _selectedImage != null
+                              ? FileImage(_selectedImage!)
+                              : (photoUrl != null
+                                  ? NetworkImage(photoUrl!)
+                                  : const AssetImage('assets/images/avatar.png')) as ImageProvider,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: lastNameController,
+                        enabled: isEditing,
+                        decoration: const InputDecoration(labelText: "Овог"),
+                      ),
+                      TextField(
+                        controller: firstNameController,
+                        enabled: isEditing,
+                        decoration: const InputDecoration(labelText: "Нэр"),
+                      ),
+                      TextField(
+                        controller: emailController,
+                        readOnly: true,
+                        decoration: const InputDecoration(labelText: "Имэйл"),
+                      ),
+                      if (!user!.emailVerified)
+                        TextButton(
+                          onPressed: _sendEmailVerification,
+                          child: const Text("📩 Имэйл баталгаажуулах"),
+                        ),
+                      TextField(
+                        controller: phoneController,
+                        keyboardType: TextInputType.phone,
+                        enabled: isEditing,
+                        decoration: const InputDecoration(labelText: "Утас"),
+                      ),
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      const Text("🔐 Нууц үг солих", style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: currentPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(labelText: "Одоогийн нууц үг"),
+                      ),
+                      TextField(
+                        controller: newPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(labelText: "Шинэ нууц үг"),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: _changePassword,
+                        child: const Text("Нууц үг солих"),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            TextField(
-              controller: firstNameController,
-              decoration: const InputDecoration(labelText: "Нэр"),
-            ),
-            TextField(
-              controller: emailController,
-              enabled: false,
-              decoration: const InputDecoration(labelText: "Имэйл"),
-            ),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: "Утас"),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _saveUserProfile,
-              child: const Text("Хадгалах"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            ),
-            const Divider(height: 30),
-            const Text("Машины жагсаалт", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            _buildVehicleList(),
-          ],
-        ),
-      ),
     );
   }
 }

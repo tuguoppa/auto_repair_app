@@ -5,8 +5,10 @@ import '../login_select_screen.dart';
 import 'workshop_panel_screen.dart';
 
 class WorkshopLoginScreen extends StatefulWidget {
+  const WorkshopLoginScreen({super.key});
+
   @override
-  _WorkshopLoginScreenState createState() => _WorkshopLoginScreenState();
+  State<WorkshopLoginScreen> createState() => _WorkshopLoginScreenState();
 }
 
 class _WorkshopLoginScreenState extends State<WorkshopLoginScreen> {
@@ -19,9 +21,9 @@ class _WorkshopLoginScreenState extends State<WorkshopLoginScreen> {
     final password = passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Бүх талбарыг бөглөнө үү')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Бүх талбарыг бөглөнө үү')),
+      );
       return;
     }
 
@@ -35,35 +37,37 @@ class _WorkshopLoginScreenState extends State<WorkshopLoginScreen> {
       final uid = userCredential.user?.uid;
       if (uid == null) throw Exception('User ID олдсонгүй');
 
-      // Firestore дээр staff эсэхийг шалгах
-      final doc =
-          await FirebaseFirestore.instance.collection('staffs').doc(uid).get();
+      // ✅ Firestore дээрээс staffs/{uid} document-ыг UID-аар авах
+      final doc = await FirebaseFirestore.instance.collection('staffs').doc(uid).get();
 
-      if (doc.exists) {
-        final staffName = doc.data()?['name'] ?? 'Staff';
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => WorkshopPanelScreen(name: staffName),
-          ),
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ажилтнаар амжилттай нэвтэрлээ!')),
-        );
-      } else {
+      if (!doc.exists) {
         await FirebaseAuth.instance.signOut();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Энэ бүртгэл staff биш байна')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Энэ бүртгэл staff биш байна')),
+        );
+        return;
       }
+
+      final staffData = doc.data();
+      final staffName = staffData?['name'] ?? 'Staff';
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WorkshopPanelScreen(name: staffName),
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ажилтнаар амжилттай нэвтэрлээ!')),
+      );
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Алдаа: ${e.message}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Firebase алдаа: ${e.message}')),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Алдаа гарлаа: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Алдаа гарлаа: $e')),
+      );
     } finally {
       setState(() => isLoading = false);
     }
@@ -73,7 +77,7 @@ class _WorkshopLoginScreenState extends State<WorkshopLoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Засварын ажилтан нэвтрэх"),
+        title: const Text("Засварын ажилтан нэвтрэх"),
         backgroundColor: Colors.blue,
       ),
       body: Padding(
@@ -81,29 +85,33 @@ class _WorkshopLoginScreenState extends State<WorkshopLoginScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
+            const Text(
               "Workshop Login",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             TextField(
               controller: emailController,
-              decoration: InputDecoration(labelText: "Имэйл"),
+              decoration: const InputDecoration(labelText: "Имэйл"),
               keyboardType: TextInputType.emailAddress,
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: passwordController,
               obscureText: true,
-              decoration: InputDecoration(labelText: "Нууц үг"),
+              decoration: const InputDecoration(labelText: "Нууц үг"),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             isLoading
-                ? CircularProgressIndicator()
+                ? const CircularProgressIndicator()
                 : ElevatedButton(
-                  onPressed: _login,
-                  child: Text("Нэвтрэх"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                ),
+                    onPressed: _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                    ),
+                    child: const Text("Нэвтрэх"),
+                  ),
           ],
         ),
       ),

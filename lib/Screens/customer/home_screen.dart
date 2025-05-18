@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '';
 import '../login_select_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -8,6 +10,7 @@ import '../employee/create_repair_screen.dart';
 import 'add_vehicle_screen.dart';
 import 'vehicle_list_screen.dart';
 import 'user_history_screen.dart';
+import 'service_detail_screen.dart'; // 🆕 дэлгэрэнгүй дэлгэцийн import
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -136,26 +139,66 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1,
-              children: const [
-                ServiceTile(icon: Icons.build, label: 'Сэгсэрдэг оношилгоо'),
-                ServiceTile(icon: Icons.cleaning_services, label: 'Авто доторлогоо'),
-                ServiceTile(icon: Icons.lightbulb, label: 'Авто гэрэл тохиргоо'),
-                ServiceTile(icon: Icons.oil_barrel, label: 'Тос солих'),
-                ServiceTile(icon: Icons.computer, label: 'Компьютер оношилгоо'),
-                ServiceTile(icon: Icons.settings, label: 'Явах эд анги'),
-              ],
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('services')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Text('Үйлчилгээ олдсонгүй');
+                }
+
+                final services = snapshot.data!.docs;
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: services.length,
+                  itemBuilder: (context, index) {
+                    final doc = services[index];
+                    final name = doc['name'] ?? '';
+                    final icon = _getIconFromName(name);
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ServiceDetailScreen(
+                              service: doc.data() as Map<String, dynamic>,
+                            ),
+                          ),
+                        );
+                      },
+                      child: ServiceTile(icon: icon, label: name),
+                    );
+                  },
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  IconData _getIconFromName(String name) {
+    if (name.contains('гэрэл')) return Icons.lightbulb;
+    if (name.contains('тос')) return Icons.oil_barrel;
+    if (name.contains('компьютер')) return Icons.computer;
+    if (name.contains('дотор')) return Icons.cleaning_services;
+    if (name.contains('оношилгоо')) return Icons.build;
+    return Icons.miscellaneous_services;
   }
 
   Widget buildDrawerItem(IconData icon, String title, BuildContext context, Widget? screen) {
